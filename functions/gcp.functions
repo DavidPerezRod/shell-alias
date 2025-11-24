@@ -1,0 +1,127 @@
+# Flujos de Zertiban
+
+##################################################
+### Cambia a cluster zertiban-neocore-test
+#################################################
+zb_test() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertiban-neocore-develop || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertiban-neocore-test \
+    --zone europe-southwest1-a \
+    --project zertiban-neocore-develop
+
+    kubectl config set-context --current --namespace=backend
+}
+
+##################################################
+### Cambia a cluster zertiban-neocore-uat
+#################################################
+zb_uat() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertiban-neocore-develop || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertiban-neocore-uat \
+    --zone europe-southwest1-a \
+    --project zertiban-neocore-develop
+
+    kubectl config set-context --current --namespace=backend
+}
+
+##################################################
+### Cambia a cluster zertipayments-neocore-test
+#################################################
+zp_test() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertipayments-neocore-develop || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertipayments-neocore-test \
+    --zone europe-southwest1-a \
+    --project zertipayments-neocore-develop
+
+   kubectl config set-context --current --namespace=backend 
+}
+
+##################################################
+### Cambia a cluster zertipayments-neocore-uat
+#################################################
+zp_uat() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertipayments-neocore-develop || return $?
+
+  # 2) Conectarse al clúster de uat
+  gcloud container clusters get-credentials zertipayments-neocore-uat \
+    --zone europe-southwest1-a \
+    --project zertipayments-neocore-develop
+
+   kubectl config set-context --current --namespace=backend 
+}
+
+
+##################################################
+### Cambia a cluster Zertiban Legacy Production
+#################################################
+zb_legacy_production() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertiban-production || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertiban-production \
+    --zone europe-west1 \
+    --project zertiban-production
+
+    kubectl config set-context --current --namespace=backend
+}
+
+##################################################
+### Cambia a cluster Zertipyament Legacy Production
+#################################################
+zp_legacy_production() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertipayments-production || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertipayments-production \
+    --zone europe-southwest1 \
+    --project zertipayments-production
+
+    kubectl config set-context --current --namespace=backend
+}
+
+##################################################
+### Cambia a cluster Zertiban Legacy Production
+#################################################
+zb_legacy_test() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertiban-development || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertiban-development \
+    --zone europe-west1 \
+    --project zertiban-development
+
+    kubectl config set-context --current --namespace=backend
+}
+
+##################################################
+### Cambia a cluster Zertipyament Legacy Production
+#################################################
+zp_legacy_test() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertipayments-development || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertipayments-development \
+    --zone europe-southwest1 \
+    --project zertipayments-development
+
+    kubectl config set-context --current --namespace=backend
+}
+
+
+
+alias kpods-env='CLUSTER=$(kubectl config view --minify -o jsonpath="{.contexts[0].context.cluster}") && \
+kubectl get pods -o custom-columns="CLUSTER:=\"$CLUSTER\",NAMESPACE:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,IP:.status.podIP,NODE:.spec.nodeName" -w'

@@ -1,0 +1,34 @@
+# Git shortcuts
+
+# Comando base
+alias g='git'
+
+# Estado y ramas
+alias gs='git status -sb'          # status corto
+alias gb='git branch'              # listar ramas
+alias gba='git branch -a'          # ramas locales + remotas
+
+# Checkout / switch
+alias gco='git checkout'           # cambiar de rama (clásico)
+alias gsw='git switch'             # cambiar de rama (nuevo comando)
+
+# Log
+alias gl='git log --oneline --decorate --graph --all'
+alias gll='git log --stat'
+
+# Diff
+alias gd='git diff'
+alias gdc='git diff --cached'      # diff de lo ya staged
+
+# Add
+alias ga='git add'                 # ga <ruta>
+alias gaa='git add -A'             # stage de todo
+
+# Commit
+alias gcm='git commit -m'          # gcm "mensaje"
+alias gca='git commit --amend'     # modificar último commit
+
+# Pull / Push
+alias gpl='git pull'
+alias gp='git push'
+alias gpf='git push --force-with-lease'  # fuerza "segura"

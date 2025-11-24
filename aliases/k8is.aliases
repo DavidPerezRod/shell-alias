@@ -1,0 +1,81 @@
+#####################################
+#####   CONSULTA DE LOGS   ##########
+#####################################
+# Se puede utilizar junto a:        #
+#         a "| lnav -"              #
+#####################################
+alias klogs='klog'
+alias klogsf='klogf'
+alias kslogs='kslog'
+alias kslogsf='kslogf'
+
+#### GUARDADO DE LOGS
+alias klog-save='klog_save'
+alias ksaved-logs='cd /Users/dperez/logs/k8s'
+
+#####################################
+####   CONSULTA DE RECURSOS   #######
+#####################################
+alias kclusters='gcloud container clusters list --project zertiban-neocore-develop'
+alias knamespaces='kubectl get namespaces'
+alias kdeployments='kubectl get deployments'
+alias kservices='kubectl get services'
+alias kpods='kpods-c'
+alias kcluster='kubectl config view --minify -o jsonpath="{.contexts[0].context.cluster}"; echo'
+alias knamespace='kubectl config view --minify -o jsonpath="{.contexts[0].context.namespace}"; echo'
+alias kdesc='kdescf' #describe la inforamción del pod
+
+
+#####################################
+####   asignación de recursos   #####
+#####################################
+alias knamespace-s='kubectl config set-context --current --namespace'
+alias kdeployment-y='kdep_yaml'
+
+
+#######################
+####   SH A POD   #####
+#######################
+alias kit='ksh'
+
+###########################
+###  PORT FORWARD A POD ###
+###########################
+alias kpf='kpfp'
+
+#####################################################################
+###  CAMBIO NIVEL TRAZAS DEPLOYMENT Y REINICIONPORT FORWARD A POD ###
+# Nivel DEBUG en el primer deployment que contenga "link-issuer" en el ns actual
+#    ktrace link-issuer
+#
+# Nivel INFO en backend
+#
+#   ktrace link-issuer INFO backend
+#
+# Nivel TRACE en el primer deployment con "api-gateway" en el ns actual
+#   ktrace api-gateway TRACE
+#
+# Las dos funciones utilizan el mismo patrón, una lo hace cambiando
+# deployment y reiniciando pod y la otra desde actuator abriendo el 
+# puerto por port-forward, sin cambio de deployment ni reinicio
+#####################################################################
+alias ktrace='ktracef'
+alias ktrace-l='ktrace-livef'
+
+############################################################
+####  COMANDOS ÚTILES EXPLOARCIÓN PODS
+############################################################
+
+# Desde dentro del pod
+#######################
+# ps aux -> muestra que se ejecuta
+# env | sort -> qué varibales de entorno está ejecutando
+
+# Desde fuera del pod
+#######################
+# kubectl cp <ns>/<pod>:/app.jar ./app.jar
+# jar tf app.jar | grep application
+############################################################
+
+
+

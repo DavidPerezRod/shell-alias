@@ -1,0 +1,18 @@
+# Proyecto actual
+alias gcp-project='gcloud config get-value project'
+
+# Listar proyectos de la cuenta
+alias gcp-projects='gcloud projects list --format="table(projectId, name, projectNumber)"'
+
+
+alias zb-test='zb_test'
+alias zb-uat='zb_uat'
+
+alias zp-test='zp_test'
+alias zp-uat='zp_uat'
+
+alias zb-legacy-production='zb_legacy_production'
+alias zp-legacy-production='zp_legacy_production'
+
+alias zb-legacy-test='zb_legacy_test'
+alias zp-legacy- test='zp_legacy_test'

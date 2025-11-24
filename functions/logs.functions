@@ -1,0 +1,36 @@
+# Abrir con lnav el último fichero .log de un directorio
+# Uso:
+#   lnav-last                 # mira en ~/logs/k8s
+#   lnav-last /otra/ruta      # mira en /otra/ruta
+
+lnav_last() {
+  local dir="${1:-$HOME/logs/k8s}"
+
+  if [ ! -d "$dir" ]; then
+    echo "Directory '$dir' does not exist" >&2
+    return 1
+  fi
+
+  # En zsh, si no hay coincidencias el glob peta; activamos null_glob localmente
+  setopt local_options null_glob 2>/dev/null || :
+
+  # Colección de ficheros .log
+  local files=("$dir"/*.log)
+
+  if (( ${#files[@]} == 0 )); then
+    echo "No .log files found in '$dir'" >&2
+    return 1
+  fi
+
+  # Ordenar por fecha de modificación y coger el más reciente
+  local latest
+  latest=$(ls -1t "${files[@]}" 2>/dev/null | head -n 1)
+
+  if [ -z "$latest" ]; then
+    echo "Could not determine latest .log file in '$dir'" >&2
+    return 1
+  fi
+
+  echo "Opening with lnav: $latest"
+  lnav "$latest"
+}

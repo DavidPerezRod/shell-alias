@@ -1,0 +1,1 @@
+alias carga-claves='ssh-add ~/.ssh/* 2>/dev/null'

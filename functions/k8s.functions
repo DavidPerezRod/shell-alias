@@ -1,0 +1,444 @@
+# klog / klogf por patrón de nombre de pod
+# Uso:
+#   klog  link-issuer           # logs una vez, namespace actual
+#   klog  link-issuer backend   # logs una vez, namespace backend
+#   klogf link-issuer           # logs -f, namespace actual
+#   klogf link-issuer backend   # logs -f, namespace backend
+
+_klog_impl() {
+  local follow="$1"   # "" o "-f"
+  local pattern="$2"
+  local ns="$3"
+
+  if [ -z "$pattern" ]; then
+    echo "Usage: klog <pattern> [namespace]" >&2
+    echo "       klogf <pattern> [namespace]" >&2
+    return 1
+  fi
+
+  local pods
+  if [ -n "$ns" ]; then
+    pods=$(
+      kubectl get pods -n "$ns" \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+        | grep "$pattern" || true
+    )
+  else
+    pods=$(
+      kubectl get pods \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+        | grep "$pattern" || true
+    )
+  fi
+
+  pods=$(printf '%s\n' "$pods" | sed '/^$/d')
+
+  local count
+  count=$(printf '%s\n' "$pods" | wc -l | tr -d ' ')
+
+  if [ "$count" -eq 0 ]; then
+    echo "No pods matching pattern '$pattern'${ns:+ in namespace '$ns'}" >&2
+    return 1
+  elif [ "$count" -gt 1 ]; then
+    echo "Multiple pods matching '$pattern'${ns:+ in namespace '$ns'}:" >&2
+    printf '%s\n' "$pods" >&2
+    echo "Use a more specific pattern." >&2
+    return 1
+  fi
+
+  local pod="$pods"
+
+  if [ -n "$ns" ]; then
+    kubectl logs $follow "$pod" -n "$ns"
+  else
+    kubectl logs $follow "$pod"
+  fi
+}
+
+klog() {
+  _klog_impl "" "$1" "$2"
+}
+
+klogf() {
+  _klog_impl "-f" "$1" "$2"
+}
+
+# "Logs por service": realmente mismo patrón, pero semánticamente diferente
+kslog() {
+  _klog_impl "" "$1" "$2"
+}
+
+kslogf() {
+  _klog_impl "-f" "$1" "$2"
+}
+
+
+# ============================================================
+# kdep-yaml: YAML de un Deployment por patrón de nombre
+# Uso:
+#   kdep-yaml validation           # namespace actual
+#   kdep-yaml validation backend   # namespace backend
+# ============================================================
+
+_kdep_impl() {
+  local pattern="$1"
+  local ns="$2"
+
+  if [ -z "$pattern" ]; then
+    echo "Usage: kdep-yaml <pattern> [namespace]" >&2
+    return 1
+  fi
+
+  local nsFlags=()
+  [ -n "$ns" ] && nsFlags=(-n "$ns")
+
+  # Obtener nombres de deployments en el namespace
+  local deps
+  deps=$(
+    kubectl get deploy "${nsFlags[@]}" \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+      | grep "$pattern" || true
+  )
+
+  # Limpiar líneas vacías
+  deps=$(printf '%s\n' "$deps" | sed '/^$/d')
+
+  local count
+  count=$(printf '%s\n' "$deps" | wc -l | tr -d ' ')
+
+  if [ "$count" -eq 0 ]; then
+    echo "No deployments matching pattern '$pattern'${ns:+ in namespace '$ns'}" >&2
+    return 1
+  elif [ "$count" -gt 1 ]; then
+    echo "Multiple deployments matching '$pattern'${ns:+ in namespace '$ns'}:" >&2
+    printf '%s\n' "$deps" >&2
+    echo "Use a more specific pattern." >&2
+    return 1
+  fi
+
+  # Solo uno → sacar su YAML
+  local dep="$deps"
+
+  kubectl get deploy "$dep" "${nsFlags[@]}" -o yaml
+}
+
+# Función pública interna (sin colisiones)
+kdep_yaml() {
+  _kdep_impl "$1" "$2"
+}
+
+
+# ============================================================
+# klog-save: guardar logs de un pod (por patrón) en un fichero local
+# Uso:
+#   klog-save <pattern> [namespace]
+# Ejemplos:
+#   klog-save flow-service backend
+#   klog-save link-issuer backend
+#   klog-save validation          # namespace actual
+# ============================================================
+
+klog_save() {
+  local pattern="$1"
+  local ns="$2"
+
+  if [ -z "$pattern" ]; then
+    echo "Usage: klog-save <pattern> [namespace]" >&2
+    return 1
+  fi
+
+  # Flags de namespace
+  local nsFlags=()
+  [ -n "$ns" ] && nsFlags=(-n "$ns")
+
+  # Obtener pods cuyo nombre contiene el patrón
+  local pods
+  if [ -n "$ns" ]; then
+    pods=$(
+      kubectl get pods -n "$ns" \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+        | grep "$pattern" || true
+    )
+  else
+    pods=$(
+      kubectl get pods \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+        | grep "$pattern" || true
+    )
+  fi
+
+  # Limpiar líneas vacías
+  pods=$(printf '%s\n' "$pods" | sed '/^$/d')
+
+  local count
+  count=$(printf '%s\n' "$pods" | wc -l | tr -d ' ')
+
+  if [ "$count" -eq 0 ]; then
+    echo "No pods matching pattern '$pattern'${ns:+ in namespace '$ns'}" >&2
+    return 1
+  elif [ "$count" -gt 1 ]; then
+    echo "Multiple pods matching '$pattern'${ns:+ in namespace '$ns'}:" >&2
+    printf '%s\n' "$pods" >&2
+    echo "Use a more specific pattern." >&2
+    return 1
+  fi
+
+  # Solo uno → usar ese
+  local pod="$pods"
+
+  # Directorio destino
+  local dir="$HOME/logs/k8s"
+  mkdir -p "$dir"
+
+  # Timestamp para el nombre del fichero
+  local ts
+  ts=$(date +%Y%m%d-%H%M%S)
+
+  # Namespace para el nombre (o "current" si no se pasa)
+  local ns_label="${ns:-current}"
+
+  local file="${dir}/${pod}-${ns_label}-${ts}.log"
+
+  echo "Saving logs from pod '${pod}' (namespace=${ns_label}) to:"
+  echo "  ${file}"
+
+  # Si quieres TODO el log:
+  kubectl logs "${nsFlags[@]}" "$pod" > "$file"
+
+  # Si prefieres limitar (descoméntalo y comenta la línea anterior):
+  # kubectl logs --since=1h "${nsFlags[@]}" "$pod" > "$file"
+
+  echo "Done."
+}
+
+
+kpods-c() {
+  # Nombre "largo" del cluster (del kubeconfig)
+  local raw_cluster
+  raw_cluster="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.cluster}')"
+
+  # Nos quedamos con lo que haya después del último '_' (zsh/bash: ##*_)
+  local cluster_name="${raw_cluster##*_}"
+
+  # Namespace actual (si viene vacío, asumimos 'default')
+  local ns
+  ns="$(kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}')"
+  [ -z "$ns" ] && ns="default"
+
+  echo "CLUSTER:   ${cluster_name}"
+  echo "NAMESPACE: ${ns}"
+  kubectl get pods -o wide "$@"
+}
+
+ksh() {
+  local pattern="$1"
+  local ns="$2"
+
+  if [ -z "$pattern" ]; then
+    echo "Uso: ksh <pod-pattern> [namespace]" >&2
+    return 1
+  fi
+
+  local pod
+  if [ -n "$ns" ]; then
+    pod=$(kubectl get pods -n "$ns" --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  else
+    pod=$(kubectl get pods --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  fi
+
+  if [ -z "$pod" ]; then
+    echo "No se ha encontrado ningún pod que contenga '$pattern'${ns:+ en el namespace '$ns'}" >&2
+    return 1
+  fi
+
+  echo "Entrando en pod: $pod${ns:+ (ns=$ns)}"
+  if [ -n "$ns" ]; then
+    kubectl exec -it -n "$ns" "$pod" -- sh
+  else
+    kubectl exec -it "$pod" -- sh
+  fi
+}
+
+kdescf() {
+  local pattern="$1"
+  local ns="$2"
+
+  if [ -z "$pattern" ]; then
+    echo "Uso: kdesc <pod-pattern> [namespace]" >&2
+    return 1
+  fi
+
+  local pod
+  if [ -n "$ns" ]; then
+    pod=$(kubectl get pods -n "$ns" --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  else
+    pod=$(kubectl get pods --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  fi
+
+  if [ -z "$pod" ]; then
+    echo "No se ha encontrado ningún pod que contenga '$pattern'${ns:+ en el namespace '$ns'}" >&2
+    return 1
+  fi
+
+  echo "Describiendo pod: $pod${ns:+ (ns=$ns)}"
+  if [ -n "$ns" ]; then
+    kubectl describe pod "$pod" -n "$ns"
+  else
+    kubectl describe pod "$pod"
+  fi
+}
+
+kpfp() {
+  local pattern="$1"
+  local local_port="${2:-8080}"
+  local remote_port="${3:-8080}"
+  local ns="$4"
+
+  if [ -z "$pattern" ]; then
+    echo "Uso: kpfp <pod-pattern> [local-port=8080] [remote-port=8080] [namespace]" >&2
+    return 1
+  fi
+
+  local pod
+  if [ -n "$ns" ]; then
+    pod=$(kubectl get pods -n "$ns" --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  else
+    pod=$(kubectl get pods --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  fi
+
+  if [ -z "$pod" ]; then
+    echo "No se ha encontrado ningún pod que contenga '$pattern'${ns:+ en el namespace '$ns'}" >&2
+    return 1
+  fi
+
+  echo "Port-forward: localhost:${local_port} -> pod/${pod}:${remote_port}${ns:+ (ns=$ns)}"
+  if [ -n "$ns" ]; then
+    kubectl port-forward -n "$ns" pod/"$pod" "${local_port}:${remote_port}"
+  else
+    kubectl port-forward pod/"$pod" "${local_port}:${remote_port}"
+  fi
+}
+
+# ktrace <deploy-pattern> [level=DEBUG] [namespace]
+ktracef() {
+  local pattern="$1"
+  local level="${2:-DEBUG}"
+  local ns="$3"
+
+  if [ -z "$pattern" ]; then
+    echo "Uso: ktrace <deploy-pattern> [level=DEBUG] [namespace]" >&2
+    return 1
+  fi
+
+  local deploy
+
+  if [ -n "$ns" ]; then
+    deploy=$(kubectl get deploy -n "$ns" --no-headers \
+                -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  else
+    deploy=$(kubectl get deploy --no-headers \
+                -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  fi
+
+  if [ -z "$deploy" ]; then
+    echo "No se ha encontrado ningún deployment que contenga '$pattern'${ns:+ en el namespace '$ns'}" >&2
+    return 1
+  fi
+
+  echo "Deployment encontrado: $deploy${ns:+ (ns=$ns)}"
+  echo "· Ajustando LOGGING_LEVEL_ROOT=$level"
+  if [ -n "$ns" ]; then
+    kubectl set env deployment/"$deploy" LOGGING_LEVEL_ROOT="$level" -n "$ns" || return $?
+  else
+    kubectl set env deployment/"$deploy" LOGGING_LEVEL_ROOT="$level" || return $?
+  fi
+
+  echo "· Haciendo rollout restart de deployment/$deploy..."
+  if [ -n "$ns" ]; then
+    kubectl rollout restart deployment/"$deploy" -n "$ns"
+  else
+    kubectl rollout restart deployment/"$deploy"
+  fi
+}
+
+# ktrace-live <pod-pattern> [level=DEBUG] [namespace]
+ktrace-livef() {
+  local pattern="$1"
+  local level="${2:-DEBUG}"
+  local ns="$3"
+
+  if [ -z "$pattern" ]; then
+    echo "Uso: ktrace-live <pod-pattern> [level=DEBUG] [namespace]" >&2
+    return 1
+  fi
+
+  # Puerto local "interno" para el port-forward
+  local local_port="${KTRACE_LIVE_PORT:-18080}"
+  local remote_port=8080
+  local actuator_path="${KTRACE_ACTUATOR_PATH:-/actuator/loggers/ROOT}"
+
+  # Resolver pod por patrón
+  local pod
+  if [ -n "$ns" ]; then
+    pod=$(kubectl get pods -n "$ns" --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  else
+    pod=$(kubectl get pods --no-headers \
+            -o custom-columns=":metadata.name" | grep "$pattern" | head -n1)
+  fi
+
+  if [ -z "$pod" ]; then
+    echo "No se ha encontrado ningún pod que contenga '$pattern'${ns:+ en el namespace '$ns'}" >&2
+    return 1
+  fi
+
+  echo "Pod encontrado: $pod${ns:+ (ns=$ns)}"
+  echo "Nivel solicitado: LOGGING_LEVEL_ROOT=$level"
+  echo "Abriendo port-forward temporal en localhost:${local_port} → pod/${pod}:${remote_port}..."
+
+  # Lanzar port-forward en background
+  if [ -n "$ns" ]; then
+    kubectl port-forward -n "$ns" "pod/${pod}" "${local_port}:${remote_port}" >/tmp/kpf_${pod}_${local_port}.log 2>&1 &
+  else
+    kubectl port-forward "pod/${pod}" "${local_port}:${remote_port}" >/tmp/kpf_${pod}_${local_port}.log 2>&1 &
+  fi
+
+  local pf_pid=$!
+
+  # Asegurar limpieza del port-forward aunque falle algo
+  cleanup() {
+    kill "$pf_pid" 2>/dev/null
+    wait "$pf_pid" 2>/dev/null
+  }
+  trap cleanup EXIT
+
+  # Pequeña espera para que el port-forward levante
+  sleep 2
+
+  echo "Llamando a http://127.0.0.1:${local_port}${actuator_path} ..."
+  local http_code
+  http_code=$(curl -s -o /tmp/ktrace-live-response.txt -w "%{http_code}" \
+    -X POST "http://127.0.0.1:${local_port}${actuator_path}" \
+    -H "Content-Type: application/json" \
+    -d '{"configuredLevel":"'"$level"'"}')
+
+  if [ "$http_code" = "200" ] || [ "$http_code" = "204" ]; then
+    echo "OK: nivel de logs actualizado a '$level' en el pod ${pod}."
+  else
+    echo "ERROR: HTTP $http_code al cambiar el nivel de logs." >&2
+    echo "Respuesta del servidor:" >&2
+    cat /tmp/ktrace-live-response.txt >&2
+    # cleanup lo hará el trap
+    return 1
+  fi
+
+  # Limpieza explícita y quitar trap
+  cleanup
+  trap - EXIT
+}

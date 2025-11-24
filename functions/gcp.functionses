@@ -1,0 +1,31 @@
+# Flujos de Zertiban
+
+##################################################
+### Cambia a cluster zertiban-neocore-test
+#################################################
+zb_test() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertiban-neocore-develop || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertiban-neocore-test \
+    --zone europe-southwest1-a \
+    --project zertiban-neocore-develop
+
+    kubectl config set-context --current --namespace=backend
+}
+
+##################################################
+### Cambia a cluster zertipayments-neocore-test
+#################################################
+zp_test() {
+  # 1) Seleccionar el proyecto de develop
+  gcloud config set project zertipayments-neocore-develop || return $?
+
+  # 2) Conectarse al clúster de test
+  gcloud container clusters get-credentials zertipayments-neocore-test \
+    --zone europe-southwest1-a \
+    --project zertipayments-neocore-develop
+
+   kubectl config set-context --current --namespace=backend 
+}
